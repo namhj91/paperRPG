@@ -6,47 +6,246 @@
     <title>공책 RPG</title>
     <style>
       :root {
-        --version-text-bg: rgba(0, 0, 0, 0.55);
-        --version-text-color: #ffffff;
+        --paper-width: min(86vw, 1120px);
+        --paper-height: calc(var(--paper-width) * 0.49);
+        --ink: #2d241c;
       }
 
-      /* 페이지 기본 설정 */
+      /* 기본 캔버스 공간 */
       html,
       body {
+        margin: 0;
         width: 100%;
         height: 100%;
-        margin: 0;
       }
 
       body {
-        /* 사용자가 제공한 배경 이미지를 전체 화면에 채웁니다. */
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: #000;
         background-image: url("asset/img/background.png");
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-        overflow: hidden;
         font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+        color: var(--ink);
       }
 
-      /* 버전 표시 UI */
+      /* 공책 안쪽 UI 기준 프레임 */
+      .paper-stage {
+        position: relative;
+        width: var(--paper-width);
+        height: var(--paper-height);
+      }
+
+      /* 첫 화면(타이틀 화면) */
+      .title-screen,
+      .game-screen {
+        position: absolute;
+        inset: 5.2% 5.6%;
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+
+      .title-screen h1 {
+        margin: 0 0 0.45rem;
+        font-size: clamp(1.4rem, 3vw, 2.3rem);
+      }
+
+      .title-screen p {
+        margin: 0 0 1rem;
+        font-size: clamp(0.88rem, 1.5vw, 1rem);
+        opacity: 0.78;
+      }
+
+      .start-button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.78rem 1.2rem;
+        background: #6a4e38;
+        color: #fff;
+        font-size: clamp(0.88rem, 1.3vw, 1rem);
+        cursor: pointer;
+        box-shadow: 0 8px 20px rgba(60, 40, 20, 0.26);
+      }
+
+      .start-button:disabled {
+        cursor: default;
+        opacity: 0.8;
+      }
+
+      /* 시작 후 보여줄 화면 */
+      .game-screen {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(8px);
+        transition: opacity 320ms ease, transform 320ms ease;
+      }
+
+      .game-screen.active {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+
+      /* 캔버스는 넘김 연출시에만 표시 */
+      #pageFlipCanvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        display: none;
+      }
+
       .version-badge {
         position: fixed;
         right: 12px;
         bottom: 12px;
         padding: 8px 10px;
         border-radius: 8px;
-        background: var(--version-text-bg);
-        color: var(--version-text-color);
+        background: rgba(0, 0, 0, 0.55);
+        color: #fff;
         font-size: 12px;
-        letter-spacing: 0.2px;
       }
     </style>
   </head>
   <body>
-    <!--
-      버전 정보 형식:
-      ver.0.0.0(YYMMDD-업데이트 주제)
-    -->
-    <div class="version-badge">ver.0.0.0(260430-초기배경구성)</div>
+    <main class="paper-stage" aria-live="polite">
+      <section class="title-screen" id="titleScreen">
+        <div>
+          <h1>Notebook RPG</h1>
+          <p>버튼을 눌러 공책 페이지를 넘기고 모험을 시작하세요.</p>
+          <button class="start-button" id="startButton" type="button">시작하기</button>
+        </div>
+      </section>
+
+      <section class="game-screen" id="gameScreen">
+        <div>
+          <h2>첫 장이 열렸습니다</h2>
+          <p>이제 여기에 대화/선택지/스탯 UI를 붙이면 됩니다.</p>
+        </div>
+      </section>
+
+      <canvas id="pageFlipCanvas" aria-hidden="true"></canvas>
+    </main>
+
+    <!-- 버전 정보: ver.0.0.0(YYMMDD-업데이트 주제) -->
+    <div class="version-badge">ver.0.0.1(260430-캔버스페이지넘김연출)</div>
+
+    <script>
+      // 고퀄 연출형(2번): Canvas 2D로 페이지 컬(접힘) + 그림자 연출
+      const stage = document.querySelector('.paper-stage');
+      const titleScreen = document.getElementById('titleScreen');
+      const gameScreen = document.getElementById('gameScreen');
+      const startButton = document.getElementById('startButton');
+      const canvas = document.getElementById('pageFlipCanvas');
+      const ctx = canvas.getContext('2d');
+
+      function fitCanvasToStage() {
+        const rect = stage.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+
+        canvas.width = Math.floor(rect.width * dpr);
+        canvas.height = Math.floor(rect.height * dpr);
+        canvas.style.width = `${rect.width}px`;
+        canvas.style.height = `${rect.height}px`;
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function drawFlip(progress) {
+        const w = stage.clientWidth;
+        const h = stage.clientHeight;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // 페이지가 오른쪽에서 왼쪽으로 말리며 이동하는 X 좌표
+        const foldX = w * (1 - progress * 1.06);
+        const curlWidth = Math.max(46, (1 - progress) * (w * 0.32));
+        const left = Math.max(0, foldX - curlWidth);
+
+        // 1) 넘겨지는 페이지 몸체(밝은 종이)
+        const pageGrad = ctx.createLinearGradient(left, 0, foldX, 0);
+        pageGrad.addColorStop(0, 'rgba(247, 240, 224, 0.98)');
+        pageGrad.addColorStop(0.7, 'rgba(236, 222, 199, 0.97)');
+        pageGrad.addColorStop(1, 'rgba(208, 188, 162, 0.95)');
+
+        ctx.fillStyle = pageGrad;
+        ctx.beginPath();
+        ctx.moveTo(left, 0);
+        ctx.lineTo(foldX, 0);
+        ctx.quadraticCurveTo(foldX + curlWidth * 0.32, h * 0.5, foldX, h);
+        ctx.lineTo(left, h);
+        ctx.closePath();
+        ctx.fill();
+
+        // 2) 접힘 안쪽 짙은 그라디언트(깊이감)
+        const innerShadow = ctx.createLinearGradient(foldX - curlWidth * 0.2, 0, foldX + 2, 0);
+        innerShadow.addColorStop(0, 'rgba(70, 50, 34, 0.0)');
+        innerShadow.addColorStop(1, 'rgba(60, 38, 20, 0.35)');
+        ctx.fillStyle = innerShadow;
+        ctx.fillRect(left, 0, foldX - left + 2, h);
+
+        // 3) 뒤쪽 페이지 그림자(배경으로 떨어지는 그림자)
+        const backShadow = ctx.createLinearGradient(foldX - 30, 0, foldX + 40, 0);
+        backShadow.addColorStop(0, 'rgba(30, 20, 10, 0.0)');
+        backShadow.addColorStop(1, 'rgba(30, 20, 10, 0.24)');
+        ctx.fillStyle = backShadow;
+        ctx.fillRect(Math.max(0, foldX - 30), 0, 80, h);
+
+        // 4) 종이 하이라이트(광택 라인)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(foldX - 2, 0);
+        ctx.quadraticCurveTo(foldX + curlWidth * 0.22, h * 0.5, foldX - 2, h);
+        ctx.stroke();
+      }
+
+      function runFlipAnimation() {
+        fitCanvasToStage();
+        canvas.style.display = 'block';
+
+        const duration = 980;
+        const start = performance.now();
+
+        function frame(now) {
+          const elapsed = now - start;
+          const t = Math.min(1, elapsed / duration);
+
+          // easeInOutCubic
+          const eased = t < 0.5
+            ? 4 * t * t * t
+            : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+          drawFlip(eased);
+
+          if (t < 1) {
+            requestAnimationFrame(frame);
+          } else {
+            canvas.style.display = 'none';
+            ctx.clearRect(0, 0, stage.clientWidth, stage.clientHeight);
+            titleScreen.style.display = 'none';
+            gameScreen.classList.add('active');
+            startButton.disabled = false;
+            startButton.textContent = '시작하기';
+          }
+        }
+
+        requestAnimationFrame(frame);
+      }
+
+      startButton.addEventListener('click', () => {
+        startButton.disabled = true;
+        startButton.textContent = '넘기는 중...';
+        runFlipAnimation();
+      });
+
+      window.addEventListener('resize', fitCanvasToStage);
+      fitCanvasToStage();
+    </script>
   </body>
 </html>

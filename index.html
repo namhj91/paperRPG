@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>공책 RPG</title>
+    <style>
+      :root {
+        --version-text-bg: rgba(0, 0, 0, 0.55);
+        --version-text-color: #ffffff;
+      }
+
+      /* 페이지 기본 설정 */
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        /* 사용자가 제공한 배경 이미지를 전체 화면에 채웁니다. */
+        background-image: url("asset/img/background.png");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        overflow: hidden;
+        font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+      }
+
+      /* 버전 표시 UI */
+      .version-badge {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: var(--version-text-bg);
+        color: var(--version-text-color);
+        font-size: 12px;
+        letter-spacing: 0.2px;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      버전 정보 형식:
+      ver.0.0.0(YYMMDD-업데이트 주제)
+    -->
+    <div class="version-badge">ver.0.0.0(260430-초기배경구성)</div>
+  </body>
+</html>
